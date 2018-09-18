@@ -1,0 +1,37 @@
+{
+  "name": "botbuilder-slack-example",
+  "version": "1.0.0",
+  "description": "Slack Connector example app.",
+  "repository": "https://github.com/suttna/botbuilder-slack",
+  "author": "Martin Fernandez <fmartin91@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "start:restify": "ts-node src/restify.ts",
+    "start:express": "ts-node src/express.ts"
+  },
+  "keywords": [
+    "bot",
+    "node",
+    "botframework",
+    "botbuilder",
+    "slack",
+    "connector"
+  ],
+  "dependencies": {
+    "@slack/client": "^3.13.0",
+    "body-parser": "^1.18.2",
+    "botbuilder": "^3.9.1",
+    "botbuilder-slack": "^2.0.0",
+    "express": "^4.16.1",
+    "node-env-file": "^0.1.8",
+    "restify": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/body-parser": "1.16.8",
+    "@types/express": "4.11.0",
+    "@types/node": "8.9.1",
+    "@types/restify": "5.0.7",
+    "ts-node": "4.1.0",
+    "typescript": "2.6.2"
+  }
+}

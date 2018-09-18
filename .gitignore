@@ -1,0 +1,9 @@
+node_modules
+lib
+docs
+.data 
+.env
+
+yarn-error.log
+yarn.lock
+coverage
