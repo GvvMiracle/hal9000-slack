@@ -1,7 +1,8 @@
-import { IEvent, IIdentity } from "botbuilder"
+import { IEvent } from "botbuilder"
 import { ISlackEnvelope, ISlackOAuthEnvelope } from "../interfaces"
 import { ISlackConnectorSettings } from "../slack_connector"
 import * as utils from "../utils"
+import { SlackIdentity } from "../address";
 
 export interface IInteractorResult {
   events: IEvent[]
@@ -19,7 +20,7 @@ export abstract class BaseInteractor<Envelope extends ISlackEnvelope | ISlackOAu
 
   public abstract async call(): Promise<IInteractorResult>
 
-  protected async buildUser(botbuilderBotId: string, userId: string): Promise<IIdentity> {
+  protected async buildUser(botbuilderBotId: string, userId: string): Promise<SlackIdentity> {
     // if (!this.settings.dataCache) {
     //   return null
     // }
@@ -31,6 +32,7 @@ export abstract class BaseInteractor<Envelope extends ISlackEnvelope | ISlackOAu
 
     if (cachedUser) {
       userIdentity.name = cachedUser.name
+      userIdentity.fullname = cachedUser.fullname;
     }
 
     return userIdentity

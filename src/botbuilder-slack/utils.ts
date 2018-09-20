@@ -1,5 +1,5 @@
 import { ChatPostMessageParams, MessageAttachment } from "@slack/client"
-import { IIdentity, IMessage } from "botbuilder"
+import { IMessage } from "botbuilder"
 import {
   IMention,
   ISlackBotIdentifier,
@@ -9,6 +9,7 @@ import {
   ISlackUser,
   ISlackUserIdentifier,
 } from "./interfaces"
+import { SlackIdentity } from "./address";
 
 export interface IMentionRequest {
   text: string
@@ -143,7 +144,7 @@ export function buildSlackMessage(message: IMessage): ChatPostMessageParams {
   }
 }
 
-export function buildUserIdentity(slackUserId: string, teamId: string): IIdentity {
+export function buildUserIdentity(slackUserId: string, teamId: string): SlackIdentity {
   return {
     id: `${slackUserId}:${teamId}`,
   }

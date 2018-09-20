@@ -170,3 +170,10 @@ export class GoogleApis {
         return freebusy;
     }
 }
+
+export interface GoogleCredentials {
+    access_token? : string;
+    scope? : string;
+    token_type? : string;
+    expity_date? : string;
+}

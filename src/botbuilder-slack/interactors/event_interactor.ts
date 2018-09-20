@@ -57,7 +57,7 @@ export class EventInteractor extends BaseInteractor<ISlackEventEnvelope> {
     const userIdentity = await this.buildUser(botId, this.event.user)
 
     const address = new Address(botIdentity.teamId)
-      .user(this.event.user, userIdentity.name)
+      .user(this.event.user, userIdentity.fullname, userIdentity.name, userIdentity.email )
       .bot(botIdentity.userId, this.settings.botName)
       .channel(this.event.channel)
       .thread(this.event.thread_ts)

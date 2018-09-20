@@ -9,7 +9,7 @@ export function LoadUsersFromFile(usersCache: UserCache)  {
         const usersFolder = 'users/';
         fs.readdirSync(rootDir + usersFolder).forEach((file: any) => {
             var user = JSON.parse(fs.readFileSync(rootDir + usersFolder + file, 'utf8'));
-            usersCache[file.split('.')[0]] = { identity: user.identity }
+            usersCache[file.split('.')[0]] = { identity: user.identity, credentials: user.credentials }
         });
     } catch (err) {
         console.log(err);

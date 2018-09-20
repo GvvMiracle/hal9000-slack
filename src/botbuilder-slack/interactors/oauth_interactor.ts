@@ -33,7 +33,7 @@ export class OAuthInteractor extends BaseInteractor<ISlackOAuthEnvelope> {
 
     const address = new Address(accessResult.team_id)
       .bot(botUser.user.profile.bot_id, botUser.user.name)
-      .user(accessResult.user_id, user.user.name)
+      .user(accessResult.user_id, user.user.profile.real_name, user.user.name, user.user.profile.email)
 
     // Remove the ok key
     delete accessResult.ok

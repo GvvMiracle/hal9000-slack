@@ -3,31 +3,26 @@ import * as bodyParser from "body-parser"
 import { SlackConnector } from "./botbuilder-slack"
 import { SlackBot, BotCache, UserCache } from "./bot"
 var env = require('node-env-file');
-
 env(__dirname + '/../.env');
-
 const port = process.env.PORT || 3000
 const botsCache: BotCache = {}
 const usersCache: UserCache = {}
 const luisURI = process.env.LUIS_URI;
-console.log(luisURI);
-
+const app = express()
 const connectorSettings = {
   botLookup: (teamId: string) => {
     const botEntry = botsCache[teamId]
-
+    
     if (botEntry) {
       return Promise.resolve([botEntry.token, botEntry.identity.id] as [string, string])
     } else {
       return Promise.reject(new Error('Bot not found'))
     }
   },
-
+  
   findUsers: (userId: string) => {
     const user = usersCache[userId]
-
-    //figure out how to get the username from the user id
-
+    
     if (user) {
       return Promise.resolve([user.identity] as [any])
     } else {
@@ -43,13 +38,16 @@ const connectorSettings = {
   onOAuthErrorRedirectUrl: process.env.SLACK_OAUTH_ON_ERROR_REDIRECT_URL,
   onOAuthAccessDeniedRedirectUrl: process.env.SLACK_OAUTH_ON_ACCESS_DENIED_REDIRECT_URL
 }
-
 const connector = new SlackConnector(connectorSettings)
-
-const app = express()
 
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded())
+
+app.use('/oauth2callback', (req: express.Request, res: express.Response) => {
+  var code = req.query.code;
+  bot.storeToken(code);
+  res.status(200).send();
+})
 
 app.listen(port, () => {
   console.log(`Bot is listening on port ${port}`)
@@ -68,5 +66,4 @@ app.get('/oauth.success', (payload) => {
 console.log('oauth.success');
 });
 
-
-new SlackBot(connector, botsCache, usersCache, luisURI);
+var bot = new SlackBot(connector, botsCache, usersCache, luisURI);
