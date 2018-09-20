@@ -4,32 +4,18 @@ import * as googleapis from 'googleapis';
 import { MeetingRoom, ParseRoomCapacity } from './domain/meetingRoom';
 import {GetGoogleClientSecret} from './utils';
 
-const fs = require('fs');
 const { google } = require('googleapis');
 
 // If modifying these scopes, delete credentials.json
 const SCOPES = ['https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly', 'https://www.googleapis.com/auth/calendar'];
-let TOKEN_PATH = 'credentials.json';
 
 export class GoogleApis {
     private static content = GetGoogleClientSecret();
     private static authClient: googleauth.OAuth2Client;
 
-    static authorize() {
+    static authorize(credentials: GoogleCredentials) {
         let oAuth2Client = this.getAuthClient();
-        
-        //Check if we have previously stored a token.
-        let token: any;
-        try {
-            token = fs.readFileSync(TOKEN_PATH, 'utf8');
-            console.log(token);
-        } catch (err) {
-            // TODO: Handle error and prompt the user to refresh login token
-            console.log(err);
-            return undefined;
-        }
-
-        oAuth2Client.setCredentials(JSON.parse(token));
+        oAuth2Client.setCredentials(credentials);
     }
 
     static getAuthClient() {
@@ -50,21 +36,21 @@ export class GoogleApis {
         return authUrl;
     }
 
-    static storeToken(token: any) {
-        try {
-            // fs.mkdirSync(TOKEN_DIR);
-            fs.writeFile(TOKEN_PATH, JSON.stringify(token));
-            console.log('Token stored to ' + TOKEN_PATH);
-        } catch (err) {
-            if (err.code != 'EEXIST') {
-                throw err;
-            }
-        }
-    }
+    // static storeToken(token: any) {
+    //     try {
+    //         // fs.mkdirSync(TOKEN_DIR);
+    //         fs.writeFile(TOKEN_PATH, JSON.stringify(token));
+    //         console.log('Token stored to ' + TOKEN_PATH);
+    //     } catch (err) {
+    //         if (err.code != 'EEXIST') {
+    //             throw err;
+    //         }
+    //     }
+    // }
 
-    static async listEvents(): Promise<googleapis.calendar_v3.Resource$Events> {
+    static async listEvents(credentials: GoogleCredentials): Promise<googleapis.calendar_v3.Resource$Events> {
         let events = undefined;
-        this.authorize();
+        this.authorize(credentials);
 
         if (this.authClient != null && this.authClient != undefined) {
             const calendar = new googleapis.calendar_v3.Calendar({ auth: this.authClient });
@@ -77,8 +63,8 @@ export class GoogleApis {
         return events;
     }
 
-    static async addEvent(meeting: Meeting): Promise<any> {
-        this.authorize();
+    static async addEvent(meeting: Meeting, credentials: GoogleCredentials): Promise<any> {
+        this.authorize(credentials);
 
         if (this.authClient != null && this.authClient != undefined) {
             const calendar = google.calendar({ version: 'v3', auth: this.authClient });
@@ -114,10 +100,10 @@ export class GoogleApis {
         }
     }
 
-    static async fetchResources(): Promise<MeetingRoom[]> {
+    static async fetchResources(credentials: GoogleCredentials): Promise<MeetingRoom[]> {
         let resources = undefined;
         let rooms: MeetingRoom[] = [];
-        this.authorize();
+        this.authorize(credentials);
         const service = google.admin('directory_v1');
         await service.resources.calendars.list({
             auth: this.authClient,
@@ -150,8 +136,8 @@ export class GoogleApis {
         return rooms;
     }
 
-    static async checkIfBusy(timemin: string, timemax: string, items: any[]): Promise<any> {
-        this.authorize();
+    static async checkIfBusy(credentials: GoogleCredentials, timemin: string, timemax: string, items: any[]): Promise<any> {
+        this.authorize(credentials);
         let freebusy;
         if (this.authClient != null && this.authClient != undefined) {
             const calendar = new googleapis.calendar_v3.Calendar({ auth: this.authClient });
