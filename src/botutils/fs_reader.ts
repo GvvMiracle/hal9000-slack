@@ -1,4 +1,4 @@
-import { UserCache, BotCache } from "./bot";
+import { UserCache, BotCache } from "../bot";
 
 const fs = require('fs');
 var rootDir = './.data/db/';

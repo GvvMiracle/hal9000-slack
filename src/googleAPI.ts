@@ -2,7 +2,7 @@ import { Meeting } from './domain/meeting';
 import * as googleauth from 'google-auth-library';
 import * as googleapis from 'googleapis';
 import { MeetingRoom, ParseRoomCapacity } from './domain/meetingRoom';
-import {GetGoogleClientSecret} from './utils';
+import {GetGoogleClientSecret} from './botutils/fs_reader';
 
 const { google } = require('googleapis');
 

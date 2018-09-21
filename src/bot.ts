@@ -1,7 +1,8 @@
 import * as builder from "botbuilder";
-import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./utils";
+import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials } from "./googleAPI";
+import { GenerateEventAttachement } from "./botutils/slack_message_builder";
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
 export type UserCache = { [key: string]: { identity: SlackIdentity, credentials?: GoogleCredentials } }
@@ -270,14 +271,19 @@ export class SlackBot {
     if (events.length) {
         // let meetingsDoc = new Document();
         // meetingsDoc.paragraph().text("Here is what I found in your calendar, " + user.identity.name);
+        var message = new builder.Message();
+        // message.text = 'this is a test';
         events.map((event, i) => {
-            //  this.generateEventApplicationCard(event, meetingsDoc);       
+            //  this.generateEventApplicationCard(event, meetingsDoc);   
+            message.addAttachment(GenerateEventAttachement(event));    
             console.log(event.summary)
         });
 
+        session.send(message);
         // session.send(<builder.IMessage>(({
         //     textFormat: 'json',
-        //     value: meetingsDoc.toJSON()
+        //     text: message.text,
+        //     attachments: message.attachments
         // }) as any));
 
         session.endConversation("");
