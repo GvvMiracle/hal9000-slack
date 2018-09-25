@@ -2,7 +2,7 @@ import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials } from "./googleAPI";
-import { GenerateEventAttachement } from "./botutils/slack_message_builder";
+import { GenerateEventMessageAttachment } from "./botutils/slack_message_builder";
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
 export type UserCache = { [key: string]: { identity: SlackIdentity, credentials?: GoogleCredentials } }
@@ -275,7 +275,7 @@ export class SlackBot {
         // message.text = 'this is a test';
         events.map((event, i) => {
             //  this.generateEventApplicationCard(event, meetingsDoc);   
-            message.addAttachment(GenerateEventAttachement(event));    
+            message.addAttachment(GenerateEventMessageAttachment(event)); 
             console.log(event.summary)
         });
 

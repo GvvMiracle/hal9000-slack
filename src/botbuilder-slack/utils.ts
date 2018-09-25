@@ -116,24 +116,7 @@ export function buildSlackMessage(message: IMessage): ChatPostMessageParams {
 
   if (message.attachments) {
     attachments = attachments.concat(message.attachments.map((a) => {
-      const content = a.content
-
-      return {
-        callback_id: "botbuilder",
-        fallback: message.text  || "",
-        pretext: content.title  || "",
-        text: content.text || "",
-        title: content.subtitle || "",
-        mrkdwn_in: ["text", "pretext"],
-        actions: content.buttons.map((x: any) => {
-          return {
-            type: "button",
-            name: x.title,
-            text: x.title,
-            value: x.value,
-          }
-        }),
-      }
+      return a.content
     }))
   }
 
