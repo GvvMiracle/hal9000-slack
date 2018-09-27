@@ -6,7 +6,7 @@ import {GetGoogleClientSecret} from './botutils/fs_reader';
 
 const { google } = require('googleapis');
 
-// If modifying these scopes, delete credentials.json
+// If modifying these scopes, need to get new authentication token from google apis
 const SCOPES = ['https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly', 'https://www.googleapis.com/auth/calendar'];
 
 export class GoogleApis {
@@ -35,18 +35,6 @@ export class GoogleApis {
         });
         return authUrl;
     }
-
-    // static storeToken(token: any) {
-    //     try {
-    //         // fs.mkdirSync(TOKEN_DIR);
-    //         fs.writeFile(TOKEN_PATH, JSON.stringify(token));
-    //         console.log('Token stored to ' + TOKEN_PATH);
-    //     } catch (err) {
-    //         if (err.code != 'EEXIST') {
-    //             throw err;
-    //         }
-    //     }
-    // }
 
     static async listEvents(credentials: GoogleCredentials): Promise<googleapis.calendar_v3.Resource$Events> {
         let events = undefined;

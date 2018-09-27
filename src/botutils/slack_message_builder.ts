@@ -1,10 +1,16 @@
 import { MessageAttachment } from "@slack/client";
 import { IAttachment } from "botbuilder";
+import { MeetingRoom } from "../domain/meetingRoom";
 
-export function GenerateEventMessageAttachment(event: any): IAttachment {
+export function GenerateEventMessageAttachment(event: any, createEvent: boolean = false): IAttachment {
     let dateStart;
     let dateEnd;
     let durationText = "";
+    let pretext = ""
+    if (createEvent) {
+        pretext = "New event was added to your calendar";
+    }
+
     if (event.start.dateTime) {
         let format = { hour: '2-digit', minute: '2-digit' };
         dateStart = new Date(event.start.dateTime);
@@ -21,11 +27,12 @@ export function GenerateEventMessageAttachment(event: any): IAttachment {
         fallback: "",
         title: event.summary,
         title_link: event.htmlLink,
+        pretext: pretext,
         fields: [
             {
                 title: "Duration",
                 value: durationText,
-                short: false
+                short: true
             },
             {
                 title: "Location",
@@ -40,5 +47,69 @@ export function GenerateEventMessageAttachment(event: any): IAttachment {
         content: attachment
     };
 }
+
+export function GenerateLocationSelectionAttachment(): IAttachment {
+    let text = "Choose location of your meeting"
+    let attachment: MessageAttachment = {
+        fallback: "",
+        text: text,
+        callback_id: 'prompt_location',
+        attachment_type: 'default',
+        actions: [
+            {
+                name: "location",
+                text: "Aarhus",
+                type: "button",
+                value: "aarhus"
+            },
+            {
+                name: "location",
+                text: "B2C",
+                type: "button",
+                value: "ballerup"
+            },
+            {
+                name: "location",
+                text: "None",
+                type: "button",
+                value: "none"
+            },
+        ]
+    }
+
+    return {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: attachment
+    };
+}
+
+export function GenerateRoomSelectionMenuAttachment(rooms: MeetingRoom[]): IAttachment {
+    let text = "Select meeting room";
+    let actions: any[];
+    rooms.forEach(room => {
+        actions.push(
+            {
+                name: "room",
+                text: room.name,
+                type: "button",
+                value: room.name
+            })
+    });
+
+    let attachment: MessageAttachment = {
+        fallback: "",
+        text: text,
+        callback_id: 'prompt_room_selection',
+        attachment_type: 'default',
+        actions: actions
+    }
+
+    return {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: attachment
+    };
+}
+
+
 
 

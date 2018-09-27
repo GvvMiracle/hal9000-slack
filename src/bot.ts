@@ -2,7 +2,8 @@ import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials } from "./googleAPI";
-import { GenerateEventMessageAttachment } from "./botutils/slack_message_builder";
+import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment } from "./botutils/slack_message_builder";
+import { MeetingRoom } from "./domain/meetingRoom";
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
 export type UserCache = { [key: string]: { identity: SlackIdentity, credentials?: GoogleCredentials } }
@@ -12,6 +13,7 @@ export class SlackBot {
   private bot: builder.UniversalBot;
   public currentSession: builder.Session;
   private userCache: UserCache;
+  private meetingRooms: MeetingRoom[];
 
   constructor(connector: builder.IConnector, botsCache: BotCache, usersCache: UserCache, luisURI: string) {
     this.createBot(connector, botsCache, usersCache, luisURI);
@@ -24,17 +26,8 @@ export class SlackBot {
 
     //Intent dialog mapping based on the recognizer settings
     let intents = new builder.IntentDialog({ recognizers: [this.recognizer] })
-      .matches('Greeting', (session, dialogArgs) => session.beginDialog('GetGreetingDialog', dialogArgs))
-      // .matches('Calendar.Add', (session, dialogArgs) => {
-      //     if(this.checkMiracleDomain())
-      //     {
-      //         session.beginDialog('AddAppointmentDialog', dialogArgs);
-      //     } 
-      //     else 
-      //     {
-      //         session.send( [ this.userName + ', please use miracle.dk account', 'I am sorry, ' + this.userName + '. You dont have access to that feature.' ] );
-      //     }
-      // })
+      .matches('Greeting', (session, dialogArgs) => session.beginDialog('GreetingDialog', dialogArgs))
+      .matches('Calendar.Add', (session, dialogArgs) => session.beginDialog('AddAppointmentDialog', dialogArgs))
       .matches('Calendar.Find', (session, dialogArgs) => session.beginDialog('GetApointmentsDialog', dialogArgs))
       // .matches('Utilities.Help', (session) => {
       //     let doc = new Document({ version: 1 });
@@ -85,11 +78,18 @@ export class SlackBot {
       console.info(event);
     });
 
-    this.bot.dialog('commandtest', this.getTestDialog());
-    this.bot.dialog('GetGreetingDialog', this.getGreetingDialog());
-    this.bot.dialog('AppInstalledDialog', this.getAppInstalledDialog());
-    this.bot.dialog('GoogleLoginDialog', this.getPromptGoogleLoginDialog());
-    this.bot.dialog('GetApointmentsDialog', this.getGetApointmentsDialog());
+    this.bot.dialog('commandtest', this.TestDialog());
+    this.bot.dialog('GreetingDialog', this.GreetingDialog());
+    this.bot.dialog('AppInstalledDialog', this.AppInstalledDialog());
+    this.bot.dialog('GoogleLoginDialog', this.PromptGoogleLoginDialog());
+    this.bot.dialog('GetApointmentsDialog', this.GetApointmentsDialog());
+    this.bot.dialog('AddAppointmentDialog', this.AddCalendarAppointmentDialog())
+      .cancelAction('cancelAction', "Ok, canceling create appointment", {
+        matches: /^cancel|abort|stop|start over/i
+      })
+      .endConversationAction('endConversationAction', "Ok, canceling create appointment", {
+        matches: /^cancel|abort|stop|start over/i
+      });
 
     this.bot.on('slackCommand', (event: builder.IEvent) => {
       console.info(`New slack command received:`)
@@ -103,7 +103,7 @@ export class SlackBot {
     this.bot.dialog('/', intents);
   }
 
-  getTestDialog() {
+  TestDialog() {
     return [
       (session: builder.Session, dialogArgs: builder.IIntentRecognizerResult, next: (res?: builder.IDialogResult<string>) => void) => {
         session.endConversation('This is a test!');
@@ -111,7 +111,7 @@ export class SlackBot {
     ];
   }
 
-  getGreetingDialog() {
+  GreetingDialog() {
     return [
       (session: builder.Session, dialogArgs: builder.IIntentRecognizerResult, next: (res?: builder.IDialogResult<string>) => void) => {
         let username = (session.message.address.user as SlackIdentity).fullname;
@@ -120,7 +120,7 @@ export class SlackBot {
     ];
   }
 
-  getAppInstalledDialog() {
+  AppInstalledDialog() {
     return [
       (session: builder.Session, dialogArgs: any) => {
         session.beginDialog('GoogleLoginDialog');
@@ -139,7 +139,7 @@ export class SlackBot {
     ];
   }
 
-  getPromptGoogleLoginDialog() {
+  PromptGoogleLoginDialog() {
     return [
       (session: builder.Session, dialogArgs: any) => {
         let url = GoogleApis.generateAuthUrl();
@@ -149,17 +149,9 @@ export class SlackBot {
     ]
   }
 
-  getGetApointmentsDialog() {
+  GetApointmentsDialog() {
     return [
       async (session: builder.Session, dialogArgs: builder.IIntentRecognizerResult, next: (res?: builder.IDialogResult<string>) => void) => {
-        //Store address in conversation, for later use
-        // let filter = {
-        //   calendarId: 'primary',
-        //   timeMin: (new Date().toISOString()),
-        //   maxResults: 10,
-        //   singleEvents: true,
-        //   orderBy: 'startTime',
-        // }
         session.conversationData.sourceAddress = session.message.address;
         let user = this.getUserFromCache(session.message.address.user.id);
         session.dialogData.user = user;
@@ -255,6 +247,207 @@ export class SlackBot {
     ];
   }
 
+  AddCalendarAppointmentDialog() {
+    return [
+      // Build up session data
+      async (session: builder.Session, dialogArgs: builder.IIntentRecognizerResult, next: (res?: builder.IDialogResult<string>) => void) => {
+        //Store address in conversation, for later use
+        session.conversationData.sourceAddress = session.message.address;
+        let user = this.getUserFromCache(session.message.address.user.id);
+        session.dialogData.user = user;
+        session.dialogData.meeting = {};
+        session.dialogData.meeting.attendees = [];
+        // session.dialogData.meeting.attendees.push({'email': this.userEmail});
+        if (dialogArgs != undefined) {
+          if (dialogArgs.entities) {
+            for (let entity of dialogArgs.entities) {
+              switch (entity.type) {
+                case "builtin.datetimeV2.datetimerange":
+                  {
+                    var daterange = builder.EntityRecognizer.findEntity(dialogArgs.entities, 'builtin.datetimeV2.datetimerange') as any;
+                    console.log(daterange.resolution.values);
+                    if (daterange.resolution.values && daterange.resolution.values.length > 0) {
+                      session.dialogData.meeting.starttime = new Date(daterange.resolution.values[0].start);
+                      session.dialogData.meeting.endtime = new Date(daterange.resolution.values[0].end);
+                    }
+                  }
+                  break;
+                case "builtin.datetimeV2.datetime":
+                  {
+                    const dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
+                    session.dialogData.meeting.starttime = dt_datetime;
+                    console.log(dt_datetime);
+                  }
+                  break;
+                case "builtin.datetimeV2.date":
+                  {
+                    const dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
+                    dt_datetime.setHours(8);
+                    session.dialogData.meeting.starttime = dt_datetime
+                    console.log(dt_datetime);
+                  }
+                  break;
+                case "Calendar.Location":
+                  {
+                    let location = entity.entity;
+                    session.dialogData.meeting.location = location;
+                  }
+                  break;
+                case "Calendar.Subject":
+                  {
+                    let subject = entity.entity;
+                    session.dialogData.meeting.subject = subject;
+                  }
+                  break;
+                case "builtin.email": {
+                  session.dialogData.meeting.attendees.push({ 'email': entity.entity });
+                }
+                  break;
+                case "Communication.ContactName": {
+                  // TODO: Figure out a way to search the name in the contacts list and try to add the email to the session.dialogData.meeting.attendees list
+                  // let name = entity.entity;
+                }
+                  break;
+                default: break;
+
+              }
+            }
+          }
+        }
+        console.log(dialogArgs);
+        //MEETING.STARTTIME
+        if (!session.dialogData.meeting.starttime) {
+          builder.Prompts.time(session, 'When do you want to schedule your meeting? (example: tomorrow at 10am; today 8 - 9; today from 15 to 17)');
+        }
+        else {
+          next();
+        }
+      },
+      (session: builder.Session, result: builder.IPromptTimeResult, next: (res?: builder.IDialogResult<Date>) => void) => {
+        // Save MEETING.STARTTIME and ENDTIME if the response is not empty                 
+        if (result.response) {
+          let eventScheduledEntity = result.response as any;
+          console.log(eventScheduledEntity);
+          if (eventScheduledEntity.resolution) {
+            if (eventScheduledEntity.resolution.start) {
+              session.dialogData.meeting.starttime = new Date(eventScheduledEntity.resolution.start);
+            }
+
+            if (eventScheduledEntity.resolution.end) {
+              session.dialogData.meeting.endtime = new Date(eventScheduledEntity.resolution.end);
+            }
+          }
+          else {
+            let startdate = builder.EntityRecognizer.resolveTime([result.response]);
+            session.dialogData.meeting.starttime = startdate;
+          }
+        }
+
+        //MEETING.ENDTIME
+        if (!session.dialogData.meeting.endtime) {
+          builder.Prompts.time(session, 'When is the meeting going to end?');
+        }
+        else {
+          next();
+        }
+      },
+      (session: builder.Session, result: builder.IPromptTimeResult, next: (res?: builder.IDialogResult<Date>) => void) => {
+        // Save MEETING.ENDTIME if the response is not empty
+        if (result.response) {
+          let endtime = builder.EntityRecognizer.resolveTime([result.response])
+          session.dialogData.meeting.endtime = endtime;
+        }
+
+        //MEETING.SUBJECT
+        if (!session.dialogData.meeting.subject) {
+          builder.Prompts.text(session, 'What is the subject of the meeting?');
+        }
+        else {
+          next();
+        }
+      },
+      (session: builder.Session, result: builder.IPromptTextResult, next: (res?: builder.IDialogResult<Date>) => void) => {
+        // Save MEETING.SUBJECT if the response is not empty
+        if (result.response) {
+          session.dialogData.meeting.subject = result.response;
+        }
+        //Ask the user for meeting location
+        if (!session.dialogData.meeting.location) {
+          //builder.Prompts.choice(session, "Select location for your meeting", "aarhus | ballerup | none", { listStyle: builder.ListStyle.button} );
+          // session.beginDialog('LocationAnswerDialog');
+          var message = new builder.Message();
+          message.addAttachment(GenerateLocationSelectionAttachment());
+          builder.Prompts.text(session, message)
+        }
+        else {
+          next();
+        }
+      },
+      (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
+        if (result.response != 'none') {
+          // Show all available rooms for the selected timestamp and location ARH | B2C
+          this.findAvailableRoomAndCreateMessage(session, result.response)
+            .then(message => builder.Prompts.text(session, message))
+            .catch((error) => console.log(error));
+        }
+        else {
+          session.dialogData.meeting.location = '';
+          next();
+        }
+      },
+      (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
+        // Save MEETING.LOCATION if the response is not empty
+        if (result.response) {
+          let locationText = result.response.name;
+          let roomMail = result.response.mail;
+          session.dialogData.meeting.location = locationText;
+          session.dialogData.meeting.attendees.push({ 'email': roomMail });
+        }
+        else {
+          next();
+        }
+
+        session.dialogData.meeting.description = "This is a test meeting made from HAL9000 Meeting assistant.";
+        session.beginDialog('GetConfirmMeetingDialog', { args: session.dialogData.meeting });
+      },
+      async (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
+        if (result.response === 'yes') {
+          // Create new google calendar event with the data from the meeting
+          await GoogleApis.addEvent(session.dialogData.meeting, session.dialogData.user.credentials).
+            then((res) => this.showNewEvent(res, session))
+            .catch((err) => console.log(err));
+        }
+        else {
+          session.endConversation("The event was NOT added to your calendar");
+        }
+      },
+    ];
+  }
+
+  async filterResources(startTime, endTime, location, attendees, credentials): Promise<MeetingRoom[]> {
+    // filter the list of meeting rooms by location ARH | B2C and capacity, order by capacity
+    let filteredRooms = this.meetingRooms.filter(meetingRoom => meetingRoom.capacity > 0 && meetingRoom.name.match(location) != null && meetingRoom.capacity >= attendees).sort((m1, m2) => { return m1.capacity - m2.capacity });
+    // Check for availability googleapi.freebusy the filtered results
+    let items = [];
+    filteredRooms.forEach(room => {
+      items.push({ id: room.mail })
+    });
+    let freeRooms: MeetingRoom[] = [];
+    await GoogleApis.checkIfBusy(credentials, startTime, endTime, items).then((response) => {
+      if (response) {
+        const freebusyArray = Object.keys(response).map(i => response[i]);
+        var i;
+        for (i = 0; i < freebusyArray.length; i++) {
+          if (freebusyArray[i].busy.length == 0) {
+            freeRooms.push(filteredRooms[i]);
+          };
+        }
+      }
+    })
+      .catch((error) => console.log(error));
+    return freeRooms;
+  }
+
   async listEvents(session: builder.Session, searchParams: any, user: any) {
     let events;
     await GoogleApis.listEvents(user.credentials).then((response) => events = response).catch((error) => console.log(error));
@@ -269,41 +462,64 @@ export class SlackBot {
   displayEvents(response: any, session: builder.Session, user: any) {
     const events = response.data.items;
     if (events.length) {
-        // let meetingsDoc = new Document();
-        // meetingsDoc.paragraph().text("Here is what I found in your calendar, " + user.identity.name);
-        var message = new builder.Message();
-        // message.text = 'this is a test';
-        events.map((event, i) => {
-            //  this.generateEventApplicationCard(event, meetingsDoc);   
-            message.addAttachment(GenerateEventMessageAttachment(event)); 
-            console.log(event.summary)
-        });
+      var message = new builder.Message();
+      events.map((event, i) => {
+        message.addAttachment(GenerateEventMessageAttachment(event));
+        console.log(event.summary)
+      });
 
-        session.send(message);
-        // session.send(<builder.IMessage>(({
-        //     textFormat: 'json',
-        //     text: message.text,
-        //     attachments: message.attachments
-        // }) as any));
-
-        session.endConversation("");
+      session.send(message);
+      session.endConversation("");
     }
     else {
-        console.log('No upcoming events found.');
-        session.endConversation(user.identity.name + ", it seems like you dont have any events in the requested period");
-    }        
-}
+      console.log('No upcoming events found.');
+      session.endConversation(user.identity.name + ", it seems like you dont have any events in the requested period");
+    }
+  }
 
-  checkMiracleDomain(): boolean {
-    // if(this.userEmail != undefined) 
-    // {
-    //     return this.userEmail.endsWith('@miracle.dk');
-    // }
-    // else
-    // {
-    //     return false;
-    // }
-    return false;
+  // checkMiracleDomain(): boolean {
+  // if(this.userEmail != undefined) 
+  // {
+  //     return this.userEmail.endsWith('@miracle.dk');
+  // }
+  // else
+  // {
+  //     return false;
+  // }
+  //   return false;
+  // }
+
+  async findAvailableRoomAndCreateMessage(session: builder.Session, location: string): Promise<builder.Message> {
+    // Get the dialogArgs here
+    let startTime = session.dialogData.meeting.starttime;
+    let endTime = session.dialogData.meeting.endtime;
+    let attendees = session.dialogData.meeting.attendees;
+
+    if (this.meetingRooms == undefined || this.meetingRooms.length == 0) {
+      await GoogleApis.fetchResources(session.dialogData.user.credentials)
+        .then((response) => {
+          // Store the resources
+          this.setResources(response);
+        }).catch((error) => console.log(error));
+
+    }
+
+    // Filter the available rooms
+    let filteredRooms: MeetingRoom[] = [];
+    await this.filterResources(startTime, endTime, location, attendees, session.dialogData.user.credentials)
+      .then((result) => filteredRooms = result)
+      .catch();
+
+    var message = new builder.Message();
+    if (filteredRooms && filteredRooms.length > 0) {
+      message.addAttachment(GenerateRoomSelectionMenuAttachment(filteredRooms))
+    }
+
+    return message;
+  }
+
+  setResources(roomsList: MeetingRoom[]) {
+    this.meetingRooms = roomsList;
   }
 
   storeToken(code: string) {
@@ -313,39 +529,8 @@ export class SlackBot {
         this.currentSession.endDialogWithResult({ response: token.tokens });
       }
     }).catch((error) => {
-      console.log('Google token generate error: ' + error);
+      console.log('Google token generated error: ' + error);
     });
-  }
-
-  async handleGoogleTokenSaved() {
-    // // Get resources
-    // if (this.checkMiracleDomain()) {
-    //   await GoogleApis.fetchResources()
-    //     .then((response) => {
-    //       // Store the resources
-    //       this.setResources(response);
-
-    //       // Send help message to the user
-    //       this.bot.beginDialog((<ConversationAddress>{
-    //         cloudId: this.cloudId,
-    //         conversationId: this.conversationId,
-    //         clientId: this.clientId,
-    //         bot: {
-    //           id: 'your-bot-id',
-    //           name: 'Your Bot Name'
-    //         },
-    //         channelId: 'stride',
-    //         user: {
-    //           id: this.userId
-    //         },
-    //         conversation: {
-    //           id: this.conversationId + this.userId,
-    //           isGroup: true
-    //         }
-    //       }), 'HelpDialog');
-    //     })
-    //     .catch((error) => console.log(error));
-    // }
   }
 
   getUserFromCache(userId: string) {
@@ -353,5 +538,13 @@ export class SlackBot {
     var user = this.userCache[userId];
     // TODO: Figure out what happens if for some reason the user is not found in the cache
     return user;
+  }
+
+  showNewEvent(response, session: builder.Session) {
+    var message = new builder.Message();
+    message.addAttachment(GenerateEventMessageAttachment(event, true));
+    console.log(response.data);
+    session.send(message);
+    session.endConversation("");
   }
 }
