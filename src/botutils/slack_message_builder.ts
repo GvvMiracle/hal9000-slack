@@ -85,7 +85,7 @@ export function GenerateLocationSelectionAttachment(): IAttachment {
 
 export function GenerateRoomSelectionMenuAttachment(rooms: MeetingRoom[]): IAttachment {
     let text = "Select meeting room";
-    let actions: any[];
+    let actions: any[] = [];
     rooms.forEach(room => {
         actions.push(
             {
@@ -110,6 +110,59 @@ export function GenerateRoomSelectionMenuAttachment(rooms: MeetingRoom[]): IAtta
     };
 }
 
+export function GenerateConfirmMeetingAttachement(meeting: any): IAttachment {
+    // let starttime = '';
+    // let endtime = '';
+    let text = 'Confirm meeting';
+    let attachment: MessageAttachment = {
+        fallback: "",
+        pretext: text,
+        callback_id: 'prompt_meeting_confirm',
+        attachment_type: 'default',
+        fields: [
+            {
+                title: "Subject",
+                value: meeting.subject,
+                short: false
+            },
+            {
+                title: "Location",
+                value: meeting.location,
+                short: false
+            },
+            {
+                title: "Starts",
+                value: meeting.starttime,
+                short: false
+            },
+            {
+                title: "Ends",
+                value: meeting.endtime,
+                short: false
+            },
+            {
+                title: "Attendees",
+                value: "",
+                short: false
+            }
+        ],
+        actions: [
+            {
+                name: "confirm",
+                text: "Yes",
+                type: "button",
+                value: "yes"
+            },
+            {
+                name: "confirm",
+                text: "No, cancel process",
+                type: "button",
+                value: "no"
+            }]
+        }
 
-
-
+    return {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: attachment
+    };
+}

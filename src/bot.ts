@@ -2,7 +2,7 @@ import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials } from "./googleAPI";
-import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment } from "./botutils/slack_message_builder";
+import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement } from "./botutils/slack_message_builder";
 import { MeetingRoom } from "./domain/meetingRoom";
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
@@ -74,6 +74,11 @@ export class SlackBot {
     });
 
     this.bot.on('conversationUpdate', (event: builder.IEvent) => {
+      console.info(`New conversation update event received:`);
+      console.info(event);
+    });
+
+    this.bot.on('channel_join', (event: builder.IEvent) => {
       console.info(`New conversation update event received:`);
       console.info(event);
     });
@@ -383,12 +388,10 @@ export class SlackBot {
           next();
         }
       },
-      (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
+      async (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
         if (result.response != 'none') {
           // Show all available rooms for the selected timestamp and location ARH | B2C
-          this.findAvailableRoomAndCreateMessage(session, result.response)
-            .then(message => builder.Prompts.text(session, message))
-            .catch((error) => console.log(error));
+          await this.promptAvailableRoomsSelectionMessage(session, result.response)
         }
         else {
           session.dialogData.meeting.location = '';
@@ -398,17 +401,22 @@ export class SlackBot {
       (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
         // Save MEETING.LOCATION if the response is not empty
         if (result.response) {
-          let locationText = result.response.name;
-          let roomMail = result.response.mail;
-          session.dialogData.meeting.location = locationText;
-          session.dialogData.meeting.attendees.push({ 'email': roomMail });
-        }
-        else {
-          next();
+          var selectedRoomArray = this.meetingRooms.filter(room => room.name.match(result.response));
+          if (selectedRoomArray.length > 0) {
+            let locationText = selectedRoomArray[0].name;
+            let roomMail = selectedRoomArray[0].mail;
+            session.dialogData.meeting.location = locationText;
+            session.dialogData.meeting.attendees.push({ 'email': roomMail });
+          }
+          else {
+            console.log('Error: Could not find rooms called: ' + result.response);
+          }
         }
 
         session.dialogData.meeting.description = "This is a test meeting made from HAL9000 Meeting assistant.";
-        session.beginDialog('GetConfirmMeetingDialog', { args: session.dialogData.meeting });
+        var message = new builder.Message();
+        message.addAttachment(GenerateConfirmMeetingAttachement(session.dialogData.meeting));
+        builder.Prompts.text(session, message)
       },
       async (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
         if (result.response === 'yes') {
@@ -442,6 +450,8 @@ export class SlackBot {
             freeRooms.push(filteredRooms[i]);
           };
         }
+
+        return freeRooms;
       }
     })
       .catch((error) => console.log(error));
@@ -489,33 +499,32 @@ export class SlackBot {
   //   return false;
   // }
 
-  async findAvailableRoomAndCreateMessage(session: builder.Session, location: string): Promise<builder.Message> {
+  async promptAvailableRoomsSelectionMessage(session: builder.Session, location: string): Promise<void> {
     // Get the dialogArgs here
     let startTime = session.dialogData.meeting.starttime;
     let endTime = session.dialogData.meeting.endtime;
     let attendees = session.dialogData.meeting.attendees;
-
+    let office = location === 'aarhus' ? 'ARH' : 'B2C';
     if (this.meetingRooms == undefined || this.meetingRooms.length == 0) {
-      await GoogleApis.fetchResources(session.dialogData.user.credentials)
-        .then((response) => {
-          // Store the resources
-          this.setResources(response);
-        }).catch((error) => console.log(error));
+      this.meetingRooms = await GoogleApis.fetchResources(session.dialogData.user.credentials);
+        // .then((response) => {
+        //   // Store the resources
+        //   this.setResources(response);
+        // }).catch((error) => console.log(error));
 
     }
 
     // Filter the available rooms
-    let filteredRooms: MeetingRoom[] = [];
-    await this.filterResources(startTime, endTime, location, attendees, session.dialogData.user.credentials)
-      .then((result) => filteredRooms = result)
-      .catch();
+    let filteredRooms: MeetingRoom[] = await this.filterResources(startTime, endTime, office, attendees, session.dialogData.user.credentials);
+      // .then((result) => filteredRooms = result)
+      // .catch();
 
     var message = new builder.Message();
     if (filteredRooms && filteredRooms.length > 0) {
-      message.addAttachment(GenerateRoomSelectionMenuAttachment(filteredRooms))
+      message.addAttachment(GenerateRoomSelectionMenuAttachment(filteredRooms));
     }
 
-    return message;
+    builder.Prompts.text(session, message);
   }
 
   setResources(roomsList: MeetingRoom[]) {
@@ -541,9 +550,9 @@ export class SlackBot {
   }
 
   showNewEvent(response, session: builder.Session) {
-    var message = new builder.Message();
-    message.addAttachment(GenerateEventMessageAttachment(event, true));
     console.log(response.data);
+    var message = new builder.Message();
+    message.addAttachment(GenerateEventMessageAttachment(response.data, true));
     session.send(message);
     session.endConversation("");
   }

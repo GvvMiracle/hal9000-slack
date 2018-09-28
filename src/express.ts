@@ -53,8 +53,6 @@ app.listen(port, () => {
   console.log(`Bot is listening on port ${port}`)
 })
 
-// app.post('/slack/actions')
-
 app.post('/slack/events',  connector.listenEvents())
 app.post('/slack/actions', connector.listenInteractiveMessages())
 app.post('/slack/command', connector.listenCommands())
