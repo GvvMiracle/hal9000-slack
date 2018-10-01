@@ -2,7 +2,7 @@ import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials } from "./googleAPI";
-import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement } from "./botutils/slack_message_builder";
+import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement, GenerateHelpMessageAttachement } from "./botutils/slack_message_builder";
 import { MeetingRoom } from "./domain/meetingRoom";
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
@@ -29,22 +29,11 @@ export class SlackBot {
       .matches('Greeting', (session, dialogArgs) => session.beginDialog('GreetingDialog', dialogArgs))
       .matches('Calendar.Add', (session, dialogArgs) => session.beginDialog('AddAppointmentDialog', dialogArgs))
       .matches('Calendar.Find', (session, dialogArgs) => session.beginDialog('GetApointmentsDialog', dialogArgs))
-      // .matches('Utilities.Help', (session) => {
-      //     let doc = new Document({ version: 1 });
-      //     doc.paragraph().text("Here's what you can say");
-      //     doc.bulletList().textItem(" get my schedule");
-      //     doc.bulletList().textItem(" add new event");
-
-      //     session.send(<builder.IMessage>(({
-      //         textFormat: 'json',
-      //         value: <any>doc.toJSON()
-      //     }) as any));
-
-      //     session.send(<builder.IMessage>(({
-      //         textFormat: 'json',
-      //         value: this.actions.messageWithInlineActionGroup()
-      //     }) as any));
-      // })
+      .matches('Utilities.Help', (session) => {
+          var message = new builder.Message();
+          message.addAttachment(GenerateHelpMessageAttachement());
+          session.endConversation(message);
+      })
       .onDefault((session) => {
         session.send(["Sorry, I do not understand this.", "Sorry, I can`t do this."]);
       });

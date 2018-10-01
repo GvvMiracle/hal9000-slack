@@ -166,3 +166,18 @@ export function GenerateConfirmMeetingAttachement(meeting: any): IAttachment {
         content: attachment
     };
 }
+
+export function GenerateHelpMessageAttachement(): IAttachment {
+    var helpText = "It looks like you need help. Here is what you can say: \n"
+    + "`Get my events` - Returns list with your events from your calendar. \n"
+    + "`Create new meeting` - Will start create meeting dialog.";
+    let attachment: MessageAttachment = {
+        fallback: helpText,
+        pretext: helpText,
+        mrkdwn_in: ["pretext"]        
+    };
+    return {
+        contentType: "application/vnd.microsoft.card.adaptive",
+        content: attachment
+    };
+}
