@@ -3,11 +3,12 @@ import * as googleauth from 'google-auth-library';
 import * as googleapis from 'googleapis';
 import { MeetingRoom, ParseRoomCapacity } from './domain/meetingRoom';
 import {GetGoogleClientSecret} from './botutils/fs_reader';
+import { TokenInfo } from 'google-auth-library/build/src/auth/oauth2client';
 
 const { google } = require('googleapis');
 
 // If modifying these scopes, need to get new authentication token from google apis
-const SCOPES = ['https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly', 'https://www.googleapis.com/auth/calendar'];
+const SCOPES = ['profile', 'email', 'https://www.googleapis.com/auth/admin.directory.resource.calendar.readonly', 'https://www.googleapis.com/auth/calendar'];
 
 export class GoogleApis {
     private static content = GetGoogleClientSecret();
@@ -103,10 +104,13 @@ export class GoogleApis {
             for (let i = 0; i < resources.length; i++) {                
                 const resource = resources[i];
                 console.log('%s (%s)', resource.resourceName, resource.resourceType);
-                let room = new MeetingRoom();
-                room.name = resource.generatedResourceName;
-                room.location = resource.buildingId;
-                room.mail = resource.resourceEmail;
+                let room: MeetingRoom = {
+                    name: resource.generatedResourceName,
+                    location: resource.buildingId,
+                    mail: resource.resourceEmail,
+                    capacity: 0
+                }
+                
                 if(String(resource.resourceType).match('Mødelokale') != null) {
                     room.capacity = ParseRoomCapacity(resource.resourceName);
                 } else {
@@ -150,4 +154,9 @@ export interface GoogleCredentials {
     scope? : string;
     token_type? : string;
     expity_date? : string;
+}
+
+export interface GoogleTokenExtraInfo extends TokenInfo  {
+    email?: string,
+    email_verified?: boolean,
 }

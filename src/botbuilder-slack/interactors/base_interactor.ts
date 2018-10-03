@@ -38,8 +38,8 @@ export abstract class BaseInteractor<Envelope extends ISlackEnvelope | ISlackOAu
     }
     else { 
       // Get user info and store it in cache using the bot access token
-      const [token, botId] = await this.settings.botLookup(botIdentity.teamId)
-      const user = await (new WebClient(token).users.info(userId))
+      let bot = await this.settings.botLookup(botIdentity.teamId); // bot[0] token, bot[1] identity
+      const user = await (new WebClient(bot[0]).users.info(userId));
       var userToSave = buildIdentity(userId, botIdentity.teamId, user.user.profile.real_name, user.user.name, user.user.profile.email);
       var userIden = await this.settings.addUser(userToSave);     
       SaveUserToFile(userIden); 

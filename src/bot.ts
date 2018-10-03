@@ -1,7 +1,7 @@
 import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
-import { GoogleApis, GoogleCredentials } from "./googleAPI";
+import { GoogleApis, GoogleCredentials, GoogleTokenExtraInfo } from "./googleAPI";
 import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement, GenerateHelpMessageAttachement } from "./botutils/slack_message_builder";
 import { MeetingRoom } from "./domain/meetingRoom";
 
@@ -27,8 +27,22 @@ export class SlackBot {
     //Intent dialog mapping based on the recognizer settings
     let intents = new builder.IntentDialog({ recognizers: [this.recognizer] })
       .matches('Greeting', (session, dialogArgs) => session.beginDialog('GreetingDialog', dialogArgs))
-      .matches('Calendar.Add', (session, dialogArgs) => session.beginDialog('AddAppointmentDialog', dialogArgs))
-      .matches('Calendar.Find', (session, dialogArgs) => session.beginDialog('GetApointmentsDialog', dialogArgs))
+      .matches('Calendar.Add', (session, dialogArgs) => {
+        session.dialogData.user = this.getUserFromCache(session.message.address.user.id);
+        if(this.getUserFromCache(session.message.address.user.id).credentials) {
+          session.beginDialog('AddAppointmentDialog', dialogArgs)
+        } else {
+          session.beginDialog('GoogleCredentialsDialog', {entities: dialogArgs.entities, nextDialog: 'AddAppointmentDialog'})
+        }
+      })
+      .matches('Calendar.Find', (session, dialogArgs) => {
+        session.dialogData.user = this.getUserFromCache(session.message.address.user.id);
+        if(this.getUserFromCache(session.message.address.user.id).credentials) {
+          session.beginDialog('GetApointmentsDialog', dialogArgs)
+        } else {
+          session.beginDialog('GoogleCredentialsDialog', {entities: dialogArgs.entities, nextDialog: 'GetApointmentsDialog'})
+        }
+      })
       .matches('Utilities.Help', (session) => {
           var message = new builder.Message();
           message.addAttachment(GenerateHelpMessageAttachement());
@@ -52,14 +66,8 @@ export class SlackBot {
         token: event.sourceEvent.ApiToken
       };
 
-      usersCache[event.sourceEvent.SlackMessage.user_id] = {
-        identity: event.address.user
-      };
-
-      // Save to file when new bot or and user is found
+      // Save to file when new bot is installed
       SaveBotToFile(botsCache[event.sourceEvent.SlackMessage.team_id]);
-      SaveUserToFile(usersCache[event.sourceEvent.SlackMessage.user_id]);
-      this.bot.beginDialog(event.address, 'AppInstalledDialog');
     });
 
     this.bot.on('conversationUpdate', (event: builder.IEvent) => {
@@ -74,8 +82,11 @@ export class SlackBot {
 
     this.bot.dialog('commandtest', this.TestDialog());
     this.bot.dialog('GreetingDialog', this.GreetingDialog());
-    this.bot.dialog('AppInstalledDialog', this.AppInstalledDialog());
-    this.bot.dialog('GoogleLoginDialog', this.PromptGoogleLoginDialog());
+    this.bot.dialog('GoogleCredentialsDialog', this.GoogleCredentialsDialog());
+    this.bot.dialog('GoogleLoginDialog', this.PromptGoogleLoginDialog())
+      .cancelAction('cancelAction', "Ok, canceling google login", {
+        matches: /^cancel|abort|stop/i
+      });
     this.bot.dialog('GetApointmentsDialog', this.GetApointmentsDialog());
     this.bot.dialog('AddAppointmentDialog', this.AddCalendarAppointmentDialog())
       .cancelAction('cancelAction', "Ok, canceling create appointment", {
@@ -114,20 +125,18 @@ export class SlackBot {
     ];
   }
 
-  AppInstalledDialog() {
+  GoogleCredentialsDialog() {
     return [
       (session: builder.Session, dialogArgs: any) => {
-        session.beginDialog('GoogleLoginDialog');
+        session.beginDialog('GoogleLoginDialog', dialogArgs);
       },
-      (session: builder.Session, result: builder.IDialogResult<GoogleCredentials>) => {
+      (session: builder.Session, result: builder.IDialogResult<any>) => {
         if (result.response) {
-          var token = result;
           // Save token to the user cache
           var user = this.getUserFromCache(session.message.address.user.id);
-          user.credentials = token.response;
+          user.credentials = result.response.token;
           SaveUserToFile(user);
-          session.endConversation('Done!');
-          // Prompt the user help message
+          session.beginDialog(result.response.dialogArgs.nextDialog, result.response.dialogArgs)
         }
       }
     ];
@@ -137,8 +146,11 @@ export class SlackBot {
     return [
       (session: builder.Session, dialogArgs: any) => {
         let url = GoogleApis.generateAuthUrl();
+        session.dialogData.user = this.getUserFromCache(session.message.address.user.id);
+        session.dialogData.googleLoginUrl = url;
+        session.dialogData.dialogArgs = dialogArgs;
         this.currentSession = session;
-        session.send("Hello there! This is HAL9000 meeting assistant. Please allow HAL9000 to use your google calendar. \n" + "<" + url + "|Google Login Link>");
+        session.send("Hello there! This is HAL9000 meeting assistant. Please allow HAL9000 to use your google calendar by singing in with your google email. \n" + "<" + url + "|Google Login Link>");
       }
     ]
   }
@@ -523,9 +535,18 @@ export class SlackBot {
   storeToken(code: string) {
     var oauth2Client = GoogleApis.getAuthClient();
     oauth2Client.getToken(code).then((token) => {
-      if (this.currentSession != undefined) {
-        this.currentSession.endDialogWithResult({ response: token.tokens });
-      }
+      oauth2Client.getTokenInfo(token.tokens.access_token).then((result) => {
+        console.log(result);
+        var tokenInfo: GoogleTokenExtraInfo = result;
+        // Make sure the email provided to Google login matches the email of the user stored in the cache
+        if(this.currentSession.dialogData.user.identity.email === tokenInfo.email) {
+          if (this.currentSession != undefined) {
+                this.currentSession.endDialogWithResult({ response: {token: token.tokens, dialogArgs: this.currentSession.dialogData.dialogArgs }});
+          }
+        } else {
+          this.currentSession.send("The provided Google account does not match " + this.currentSession.dialogData.user.identity.email + '. Please, try again the link above!');
+        }
+      })
     }).catch((error) => {
       console.log('Google token generated error: ' + error);
     });

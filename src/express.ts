@@ -31,11 +31,11 @@ const connectorSettings = {
   },
 
   addUser: (user: any) => {
-    const [userId, teamId] = user.id.split(":");
+    const userId = user.id.split(":")[0];
     usersCache[userId] = {
       identity: user
     }
-    return Promise.resolve([usersCache[userId]] as [any])
+    return Promise.resolve(usersCache[userId] as any);
   },
   botName: process.env.SLACK_BOT_NAME,
   verificationToken: process.env.SLACK_VERIFICATION_TOKEN,
