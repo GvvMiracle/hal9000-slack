@@ -9,9 +9,9 @@ export type BotCache = { [key: string]: { identity: builder.IIdentity, token: st
 export type UserCache = { [key: string]: { identity: SlackIdentity, credentials?: GoogleCredentials } }
 
 export class SlackBot {
+  public currentSession: builder.Session;
   private recognizer: builder.LuisRecognizer;
   private bot: builder.UniversalBot;
-  public currentSession: builder.Session;
   private userCache: UserCache;
   private meetingRooms: MeetingRoom[];
 

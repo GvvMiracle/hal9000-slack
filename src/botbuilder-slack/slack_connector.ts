@@ -16,7 +16,8 @@ export interface ISlackAddress extends IAddress {
 
 export interface ISlackConnectorSettings {
   botLookup: (teamId: string) => Promise<[string, string]>
-  findUsers: (userId: string) => Promise<[any]>
+  findUsers: (userId: string) => Promise<[any]>,
+  addUser: (user: any) => Promise<[any]>,
   botName: string
   verificationToken: string
   clientId: string

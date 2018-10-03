@@ -1,8 +1,10 @@
 import { IEvent } from "botbuilder"
+import { WebClient } from "@slack/client"
 import { ISlackEnvelope, ISlackOAuthEnvelope } from "../interfaces"
 import { ISlackConnectorSettings } from "../slack_connector"
 import * as utils from "../utils"
-import { SlackIdentity } from "../address";
+import { SlackIdentity, buildIdentity } from "../address";
+import { SaveUserToFile } from "../../botutils/fs_reader";
 
 export interface IInteractorResult {
   events: IEvent[]
@@ -33,6 +35,15 @@ export abstract class BaseInteractor<Envelope extends ISlackEnvelope | ISlackOAu
     if (cachedUser) {
       userIdentity.name = cachedUser.name
       userIdentity.fullname = cachedUser.fullname;
+    }
+    else { 
+      // Get user info and store it in cache using the bot access token
+      const [token, botId] = await this.settings.botLookup(botIdentity.teamId)
+      const user = await (new WebClient(token).users.info(userId))
+      var userToSave = buildIdentity(userId, botIdentity.teamId, user.user.profile.real_name, user.user.name, user.user.profile.email);
+      var userIden = await this.settings.addUser(userToSave);     
+      SaveUserToFile(userIden); 
+      return userToSave;
     }
 
     return userIdentity

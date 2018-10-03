@@ -26,8 +26,16 @@ const connectorSettings = {
     if (user) {
       return Promise.resolve([user.identity] as [any])
     } else {
-      return Promise.reject(new Error('User not found'))
+      return Promise.resolve([undefined] as any)
     }
+  },
+
+  addUser: (user: any) => {
+    const [userId, teamId] = user.id.split(":");
+    usersCache[userId] = {
+      identity: user
+    }
+    return Promise.resolve([usersCache[userId]] as [any])
   },
   botName: process.env.SLACK_BOT_NAME,
   verificationToken: process.env.SLACK_VERIFICATION_TOKEN,
