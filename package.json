@@ -22,7 +22,9 @@
     "botbuilder-slack": "^2.0.0",
     "express": "^4.16.1",
     "node-env-file": "^0.1.8",
-    "restify": "^6.0.0"
+    "restify": "^6.0.0",
+    "google-auth-library": "^2.0.0",
+    "googleapis": "^34.0.0"
   },
   "devDependencies": {
     "@types/body-parser": "1.17.0",

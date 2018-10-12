@@ -82,6 +82,7 @@ export class SlackConnector implements IConnector {
 
   public listenEvents() {
     return (req: http.IRequest, res: http.IResponse, next: () => void) => {
+      console.log("Events callback");
       new interactors.EventInteractor(this.settings, req.body)
         .call()
         .then((result) => {
