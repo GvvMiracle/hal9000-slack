@@ -63,12 +63,10 @@ export class GoogleApis {
                 'location': meeting.location.name,
                 'description': meeting.description,
                 'start': {
-                    'dateTime': meeting.starttime,
-                    'timeZone': 'Europe/Copenhagen',
+                    'dateTime': meeting.starttime
                 },
                 'end': {
-                    'dateTime': meeting.endtime,
-                    'timeZone': 'Europe/Copenhagen',
+                    'dateTime': meeting.endtime
                 },
                 'attendees': meeting.attendees,
                 'reminders': {

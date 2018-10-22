@@ -12,7 +12,7 @@ export function GenerateEventMessageAttachment(event: any, createEvent: boolean 
     }
 
     if (event.start.dateTime) {
-        let format = { hour: '2-digit', minute: '2-digit' };
+        let format = { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' };
         dateStart = new Date(event.start.dateTime);
         dateEnd = new Date(event.end.dateTime);
         durationText = dateStart.toLocaleDateString('dk-DA') + " " + dateStart.toLocaleTimeString('dk-DA', format) + " - " + dateEnd.toLocaleTimeString('dk-DA', format);
@@ -110,10 +110,13 @@ export function GenerateRoomSelectionMenuAttachment(rooms: MeetingRoom[]): IAtta
     };
 }
 
-export function GenerateConfirmMeetingAttachement(meeting: any): IAttachment {
+export function GenerateConfirmMeetingAttachement(meeting: any, timezone: string): IAttachment {
     // let starttime = '';
     // let endtime = '';
+    let format = { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' };
     let text = 'Confirm meeting';
+    let startDate = new Date(meeting.starttime);
+    let endDate = new Date(meeting.endtime);
     let attachment: MessageAttachment = {
         fallback: "",
         pretext: text,
@@ -132,12 +135,12 @@ export function GenerateConfirmMeetingAttachement(meeting: any): IAttachment {
             },
             {
                 title: "Starts",
-                value: meeting.starttime,
+                value: startDate.toLocaleDateString('dk-DA') + " " + startDate.toLocaleTimeString('dk-DA', format),
                 short: false
             },
             {
                 title: "Ends",
-                value: meeting.endtime,
+                value: endDate.toLocaleDateString('dk-DA') + " " + endDate.toLocaleTimeString('dk-DA', format),
                 short: false
             },
             {

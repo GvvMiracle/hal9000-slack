@@ -4,6 +4,7 @@ import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials, GoogleTokenExtraInfo } from "./googleAPI";
 import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement, GenerateHelpMessageAttachement } from "./botutils/slack_message_builder";
 import { MeetingRoom } from "./domain/meetingRoom";
+import * as moment from 'moment-timezone';
 
 export type BotCache = { [key: string]: { identity: builder.IIdentity, token: string } }
 export type UserCache = { [key: string]: { identity: SlackIdentity, credentials?: GoogleCredentials } }
@@ -52,7 +53,7 @@ export class SlackBot {
         session.send(["Sorry, I do not understand this.", "Sorry, I can`t do this."]);
       });
 
-    this.bot = new builder.UniversalBot(connector)
+    this.bot = new builder.UniversalBot(connector);
 
     // Load stored bots and user info
     LoadBotsFromFile(botsCache);
@@ -175,8 +176,8 @@ export class SlackBot {
                     var daterange = builder.EntityRecognizer.findEntity(dialogArgs.entities, 'builtin.datetimeV2.datetimerange') as any;
                     console.log(daterange.resolution.values);
                     if (daterange.resolution.values && daterange.resolution.values.length > 0) {
-                      session.dialogData.searchParams.timeMin = new Date(daterange.resolution.values[0].start);
-                      session.dialogData.searchParams.timeMax = new Date(daterange.resolution.values[0].end);
+                      session.dialogData.searchParams.timeMin = moment.tz(daterange.resolution.values[0].start, user.identity.timeZone).toISOString();
+                      session.dialogData.searchParams.timeMax = moment.tz(daterange.resolution.values[0].end, user.identity.timeZone).toISOString();
                     }
                   }
                   break;
@@ -189,17 +190,18 @@ export class SlackBot {
                       let end = new Date(daterange.resolution.values[0].end);
                       start.setHours(0);
                       end.setHours(0);
-                      session.dialogData.searchParams.timeMin = start;
-                      session.dialogData.searchParams.timeMax = end;
+                      session.dialogData.searchParams.timeMin = moment.tz(start.toLocaleDateString() + " " + start.toLocaleTimeString(), user.identity.timeZone).toISOString();
+                      session.dialogData.searchParams.timeMax = moment.tz(end.toLocaleDateString() + " " + end.toLocaleTimeString(), user.identity.timeZone).toISOString();
                     }
                   }
                   break;
                 case "builtin.datetimeV2.datetime":
                   {
                     let dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
-                    session.dialogData.searchParams.timeMin = dt_datetime;
-                    session.dialogData.searchParams.timeMax = dt_datetime;
-                    console.log(dt_datetime);
+                    let dt_max = new Date(dt_datetime);
+                    dt_max.setSeconds(dt_datetime.getSeconds() + 1);
+                    session.dialogData.searchParams.timeMin = moment.tz(dt_datetime.toLocaleDateString() + " " + dt_datetime.toLocaleTimeString(), user.identity.timeZone).toISOString();
+                    session.dialogData.searchParams.timeMax = moment.tz(dt_max.toLocaleDateString() + " " + dt_max.toLocaleTimeString(), user.identity.timeZone).toISOString();
                   }
                   break;
                 case "builtin.datetimeV2.date":
@@ -209,11 +211,11 @@ export class SlackBot {
 
                     dt_datetimeEnd.setHours(23);
                     dt_datetimeEnd.setMinutes(59);
-                    session.dialogData.searchParams.timeMax = dt_datetimeEnd;
+                    session.dialogData.searchParams.timeMax = moment.tz(dt_datetimeEnd.toLocaleDateString() + " " + dt_datetimeEnd.toLocaleTimeString(), user.identity.timeZone).toISOString();
 
                     dt_datetimeStart.setHours(0);
                     dt_datetimeStart.setMinutes(0);
-                    session.dialogData.searchParams.timeMin = dt_datetimeStart;
+                    session.dialogData.searchParams.timeMin = moment.tz(dt_datetimeStart.toLocaleDateString() + " " + dt_datetimeStart.toLocaleTimeString(), user.identity.timeZone).toISOString();
                   }
                   break;
                 case "Calendar.Location":
@@ -273,35 +275,38 @@ export class SlackBot {
                     var daterange = builder.EntityRecognizer.findEntity(dialogArgs.entities, 'builtin.datetimeV2.datetimerange') as any;
                     console.log(daterange.resolution.values);
                     if (daterange.resolution.values && daterange.resolution.values.length > 0) {
-                      session.dialogData.meeting.starttime = new Date(daterange.resolution.values[0].start);
-                      session.dialogData.meeting.endtime = new Date(daterange.resolution.values[0].end);
+                      // session.dialogData.meeting.starttime = new Date(daterange.resolution.values[0].start + " (" + user.identity.timeZone + ")");
+                      session.dialogData.meeting.starttime = moment.tz(daterange.resolution.values[0].start, user.identity.timeZone);
+                      // session.dialogData.meeting.endtime = new Date(daterange.resolution.values[0].end + " (" + user.identity.timeZone + ")");
+                      session.dialogData.meeting.endtime = moment.tz(daterange.resolution.values[0].end, user.identity.timeZone);
+
                     }
                   }
                   break;
                 case "builtin.datetimeV2.datetime":
                   {
-                    const dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
-                    session.dialogData.meeting.starttime = dt_datetime;
+                    var dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
+                    session.dialogData.meeting.starttime = moment.tz(dt_datetime.toLocaleDateString() + " " + dt_datetime.toLocaleTimeString(), user.identity.timeZone);
                     console.log(dt_datetime);
                   }
                   break;
                 case "builtin.datetimeV2.date":
                   {
-                    const dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
+                    var dt_datetime = builder.EntityRecognizer.parseTime(entity.entity);
                     dt_datetime.setHours(8);
-                    session.dialogData.meeting.starttime = dt_datetime
+                    session.dialogData.meeting.starttime = moment.tz(dt_datetime.toLocaleDateString() + " " + dt_datetime.toLocaleTimeString(), user.identity.timeZone);
                     console.log(dt_datetime);
                   }
                   break;
                 case "Calendar.Location":
                   {
-                    let location = entity.entity;
+                    var location = entity.entity;
                     session.dialogData.meeting.location = location;
                   }
                   break;
                 case "Calendar.Subject":
                   {
-                    let subject = entity.entity;
+                    var subject = entity.entity;
                     session.dialogData.meeting.subject = subject;
                   }
                   break;
@@ -336,16 +341,16 @@ export class SlackBot {
           console.log(eventScheduledEntity);
           if (eventScheduledEntity.resolution) {
             if (eventScheduledEntity.resolution.start) {
-              session.dialogData.meeting.starttime = new Date(eventScheduledEntity.resolution.start);
+              session.dialogData.meeting.starttime = moment.tz(eventScheduledEntity.resolution.start.toLocaleDateString() + " " + eventScheduledEntity.resolution.start.toLocaleTimeString(), session.dialogData.user.identity.timeZone);
             }
 
             if (eventScheduledEntity.resolution.end) {
-              session.dialogData.meeting.endtime = new Date(eventScheduledEntity.resolution.end);
+              session.dialogData.meeting.endtime = moment.tz(eventScheduledEntity.resolution.end.toLocaleDateString() + " " + eventScheduledEntity.resolution.end.toLocaleTimeString(), session.dialogData.user.identity.timeZone);
             }
           }
           else {
             let startdate = builder.EntityRecognizer.resolveTime([result.response]);
-            session.dialogData.meeting.starttime = startdate;
+            session.dialogData.meeting.starttime = moment.tz(startdate.toLocaleDateString() + " " + startdate.toLocaleTimeString(), session.dialogData.user.identity.timeZone);
           }
         }
 
@@ -361,7 +366,7 @@ export class SlackBot {
         // Save MEETING.ENDTIME if the response is not empty
         if (result.response) {
           let endtime = builder.EntityRecognizer.resolveTime([result.response])
-          session.dialogData.meeting.endtime = endtime;
+          session.dialogData.meeting.endtime = moment.tz(endtime.toLocaleDateString() + " " + endtime.toLocaleTimeString(), session.dialogData.user.identity.timeZone);
         }
 
         //MEETING.SUBJECT
@@ -379,8 +384,6 @@ export class SlackBot {
         }
         //Ask the user for meeting location
         if (!session.dialogData.meeting.location) {
-          //builder.Prompts.choice(session, "Select location for your meeting", "aarhus | ballerup | none", { listStyle: builder.ListStyle.button} );
-          // session.beginDialog('LocationAnswerDialog');
           var message = new builder.Message();
           message.addAttachment(GenerateLocationSelectionAttachment());
           builder.Prompts.text(session, message)
@@ -416,7 +419,7 @@ export class SlackBot {
 
         session.dialogData.meeting.description = "This is a test meeting made from HAL9000 Meeting assistant.";
         var message = new builder.Message();
-        message.addAttachment(GenerateConfirmMeetingAttachement(session.dialogData.meeting));
+        message.addAttachment(GenerateConfirmMeetingAttachement(session.dialogData.meeting, session.dialogData.user.identity.timeZone));
         builder.Prompts.text(session, message)
       },
       async (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {

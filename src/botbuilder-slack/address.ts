@@ -37,8 +37,8 @@ export class Address {
     return this
   }
 
-  public user(user: string, fullname?: string, name?: string, email?: string): Address {
-    this.data.user = buildIdentity(user, this.teamId, fullname, name, email)
+  public user(user: string, fullname?: string, name?: string, email?: string, timezone?: string): Address {
+    this.data.user = buildIdentity(user, this.teamId, fullname, name, email, timezone)
 
     return this
   }
@@ -65,7 +65,7 @@ export class Address {
   }
 }
 
-export function buildIdentity(userId: string, teamId: string, fullname?: string, name?: string, email?: string): SlackIdentity {
+export function buildIdentity(userId: string, teamId: string, fullname?: string, name?: string, email?: string, timezone?: string): SlackIdentity {
   const identity: SlackIdentity = {
     id: `${userId}:${teamId}`,
   }
@@ -82,10 +82,15 @@ export function buildIdentity(userId: string, teamId: string, fullname?: string,
     identity.email = email
   }
 
+  if(timezone) {
+    identity.timeZone = timezone;
+  }
+
   return identity
 }
 
 export interface SlackIdentity extends IIdentity {
   email? : string;
   fullname? : string;
+  timeZone? : string;
 }
