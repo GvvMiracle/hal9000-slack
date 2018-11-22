@@ -2,7 +2,7 @@ import * as builder from "botbuilder";
 import { SaveBotToFile, SaveUserToFile, LoadBotsFromFile, LoadUsersFromFile } from "./botutils/fs_reader";
 import { SlackIdentity } from "./botbuilder-slack/address";
 import { GoogleApis, GoogleCredentials, GoogleTokenExtraInfo } from "./googleAPI";
-import { GenerateEventMessageAttachment, GenerateLocationSelectionAttachment, GenerateRoomSelectionMenuAttachment, GenerateConfirmMeetingAttachement, GenerateHelpMessageAttachement } from "./botutils/slack_message_builder";
+import * as messageBuilder from "./botutils/slack_message_builder";
 import { MeetingRoom } from "./domain/meetingRoom";
 import * as moment from 'moment-timezone';
 
@@ -46,7 +46,7 @@ export class SlackBot {
       })
       .matches('Utilities.Help', (session) => {
           var message = new builder.Message();
-          message.addAttachment(GenerateHelpMessageAttachement());
+          message.addAttachment(messageBuilder.GenerateHelpMessageAttachement());
           session.endConversation(message);
       })
       .onDefault((session) => {
@@ -385,7 +385,7 @@ export class SlackBot {
         //Ask the user for meeting location
         if (!session.dialogData.meeting.location) {
           var message = new builder.Message();
-          message.addAttachment(GenerateLocationSelectionAttachment());
+          message.addAttachment(messageBuilder.GenerateLocationSelectionAttachment());
           builder.Prompts.text(session, message)
         }
         else {
@@ -419,7 +419,7 @@ export class SlackBot {
 
         session.dialogData.meeting.description = "This is a test meeting made from HAL9000 Meeting assistant.";
         var message = new builder.Message();
-        message.addAttachment(GenerateConfirmMeetingAttachement(session.dialogData.meeting, session.dialogData.user.identity.timeZone));
+        message.addAttachment(messageBuilder.GenerateConfirmMeetingAttachement(session.dialogData.meeting, session.dialogData.user.identity.timeZone));
         builder.Prompts.text(session, message)
       },
       async (session: builder.Session, result: any, next: (res?: builder.IDialogResult<Date>) => void) => {
@@ -478,7 +478,7 @@ export class SlackBot {
     if (events.length) {
       var message = new builder.Message();
       events.map((event, i) => {
-        message.addAttachment(GenerateEventMessageAttachment(event));
+        message.addAttachment(messageBuilder.GenerateEventMessageAttachment(event));
         console.log(event.summary)
       });
 
@@ -525,7 +525,7 @@ export class SlackBot {
 
     var message = new builder.Message();
     if (filteredRooms && filteredRooms.length > 0) {
-      message.addAttachment(GenerateRoomSelectionMenuAttachment(filteredRooms));
+      message.addAttachment(messageBuilder.GenerateRoomSelectionMenuAttachment(filteredRooms));
     }
 
     builder.Prompts.text(session, message);
@@ -565,7 +565,7 @@ export class SlackBot {
   showNewEvent(response, session: builder.Session) {
     console.log(response.data);
     var message = new builder.Message();
-    message.addAttachment(GenerateEventMessageAttachment(response.data, true));
+    message.addAttachment(messageBuilder.GenerateEventMessageAttachment(response.data, true));
     session.send(message);
     session.endConversation("");
   }
